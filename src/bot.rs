@@ -8,9 +8,7 @@ use std::error::Error;
 use std::{collections::HashMap, sync::Arc};
 use teloxide::{
     dispatching::UpdateHandler,
-    payloads::{
-        AnswerCallbackQuerySetters, EditMessageTextSetters, SendMessageSetters,
-    },
+    payloads::{AnswerCallbackQuerySetters, EditMessageTextSetters, SendMessageSetters},
     prelude::*,
     requests::Requester,
     types::{
@@ -106,7 +104,10 @@ pub async fn log_to_admins(bot: &Bot, state: &AppState, message: impl AsRef<str>
     let message = message.as_ref();
     info!("{message}");
     for admin_id in &state.config.admin_ids {
-        if let Err(err) = bot.send_message(ChatId(*admin_id), message.to_string()).await {
+        if let Err(err) = bot
+            .send_message(ChatId(*admin_id), message.to_string())
+            .await
+        {
             error!("Помилка при надсиланні повідомлення адміну {admin_id}: {err}");
         }
     }
@@ -240,10 +241,14 @@ async fn handle_listwords(bot: &Bot, msg: &Message, state: &AppState) -> Handler
 
     let words = db::list_words(&state.pool).await?;
     if words.is_empty() {
-        bot.send_message(msg.chat.id, "Список слів порожній.").await?;
-    } else {
-        bot.send_message(msg.chat.id, format!("Заборонені слова: {}", words.join(", ")))
+        bot.send_message(msg.chat.id, "Список слів порожній.")
             .await?;
+    } else {
+        bot.send_message(
+            msg.chat.id,
+            format!("Заборонені слова: {}", words.join(", ")),
+        )
+        .await?;
     }
     Ok(())
 }
@@ -458,7 +463,10 @@ pub async fn is_group_admin(bot: &Bot, state: &AppState, chat_id: ChatId, user_i
             log_to_admins(
                 bot,
                 state,
-                format!("Помилка при перевірці прав користувача {}: {err}", user_id.0),
+                format!(
+                    "Помилка при перевірці прав користувача {}: {err}",
+                    user_id.0
+                ),
             )
             .await;
             false
@@ -482,7 +490,12 @@ async fn ban_user(
     .await
     {
         Ok(()) => {
-            log_to_admins(bot, state, format!("Користувач {} заблокований.", user_id.0)).await;
+            log_to_admins(
+                bot,
+                state,
+                format!("Користувач {} заблокований.", user_id.0),
+            )
+            .await;
         }
         Err(err) => {
             log_to_admins(

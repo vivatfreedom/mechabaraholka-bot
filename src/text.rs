@@ -1,6 +1,6 @@
 pub fn split_addword_args(input: &str) -> Vec<String> {
     input
-        .split(|ch| ch == ',' || ch == ';' || ch == ' ')
+        .split([',', ';', ' '])
         .map(|word| word.trim().to_lowercase())
         .filter(|word| !word.is_empty())
         .collect()

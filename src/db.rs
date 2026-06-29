@@ -81,11 +81,7 @@ mod tests {
 
         let inserted = add_words(
             &pool,
-            &[
-                "spam".to_string(),
-                "spam".to_string(),
-                "scam".to_string(),
-            ],
+            &["spam".to_string(), "spam".to_string(), "scam".to_string()],
         )
         .await?;
         assert_eq!(inserted, 2);

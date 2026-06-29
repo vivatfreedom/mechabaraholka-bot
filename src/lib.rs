@@ -1,5 +1,5 @@
 pub mod bot;
-pub mod db;
 pub mod config;
+pub mod db;
 pub mod text;
 pub mod voteban;
