@@ -90,6 +90,7 @@ pub fn voteban_keyboard(counts: VoteCounts, need_count: usize) -> InlineKeyboard
 pub async fn run(bot: Bot, state: AppState) {
     Dispatcher::builder(bot, schema())
         .dependencies(dptree::deps![state])
+        .enable_ctrlc_handler()
         .build()
         .dispatch()
         .await;
