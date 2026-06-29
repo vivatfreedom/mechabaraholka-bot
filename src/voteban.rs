@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ActiveVoteban {
     pub target_user_id: i64,
@@ -7,7 +5,7 @@ pub struct ActiveVoteban {
     pub voteban_message_id: i32,
     pub initiator_id: i64,
     pub target_username: String,
-    voters: HashMap<i64, bool>,
+    voters: Vec<(i64, bool)>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -31,8 +29,7 @@ impl ActiveVoteban {
         initiator_id: i64,
         target_username: String,
     ) -> Self {
-        let mut voters = HashMap::new();
-        voters.insert(initiator_id, true);
+        let voters = vec![(initiator_id, true)];
         Self {
             target_user_id,
             target_message_id,
@@ -48,17 +45,25 @@ impl ActiveVoteban {
             return VoteResult::TargetCannotVote;
         }
 
-        if self.voters.get(&user_id).copied() == Some(for_ban) {
-            return VoteResult::AlreadyVoted;
+        if let Some((_, vote)) = self
+            .voters
+            .iter_mut()
+            .find(|(voter_id, _)| *voter_id == user_id)
+        {
+            if *vote == for_ban {
+                return VoteResult::AlreadyVoted;
+            }
+            *vote = for_ban;
+            return VoteResult::Recorded;
         }
 
-        self.voters.insert(user_id, for_ban);
+        self.voters.push((user_id, for_ban));
         VoteResult::Recorded
     }
 
     pub fn counts(&self) -> VoteCounts {
-        let for_ban = self.voters.values().filter(|vote| **vote).count();
-        let against = self.voters.values().filter(|vote| !**vote).count();
+        let for_ban = self.voters.iter().filter(|(_, vote)| *vote).count();
+        let against = self.voters.iter().filter(|(_, vote)| !*vote).count();
         VoteCounts { for_ban, against }
     }
 
@@ -124,5 +129,17 @@ mod tests {
                 against: 0
             }
         );
+    }
+
+    #[test]
+    fn voter_lists_preserve_insertion_order_like_javascript_map() {
+        let mut vote = ActiveVoteban::new(10, 20, 30, 40, "target".to_string());
+        for user_id in 50..70 {
+            assert_eq!(vote.record_vote(user_id, true), VoteResult::Recorded);
+        }
+
+        let expected: Vec<i64> = std::iter::once(40).chain(50..70).collect();
+        assert_eq!(vote.for_voters(), expected);
+        assert_eq!(vote.against_voters(), Vec::<i64>::new());
     }
 }
