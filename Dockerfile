@@ -1,10 +1,23 @@
-FROM node:20-alpine
-RUN mkdir -p /opt/app
+FROM rust:1.88-slim-bookworm AS builder
+
 WORKDIR /opt/app
-COPY package.json .
-COPY tsconfig.json .
-COPY .env .
-RUN npm install
-COPY src/ ./src
-COPY prisma/ ./prisma
-CMD ["sh", "-c", "npx prisma migrate deploy && npx prisma generate && npm start"]
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends build-essential ca-certificates pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+
+RUN cargo build --release
+
+FROM debian:bookworm-slim
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /opt/app
+COPY --from=builder /opt/app/target/release/mechabaraholka-bot /usr/local/bin/mechabaraholka-bot
+
+CMD ["mechabaraholka-bot"]
