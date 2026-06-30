@@ -56,20 +56,7 @@ echo TOKEN | docker login ghcr.io -u vivatfreedom --password-stdin
 
 `TOKEN` має мати доступ на читання package.
 
-## Оновлення після міграції з PostgreSQL
-
-Міграцію даних у SQLite вже виконано. PostgreSQL більше не потрібен для роботи бота, а `.env` не має містити `POSTGRES_MIGRATION_URL` або старий PostgreSQL `DATABASE_URL`.
-
-Після оновлення цього compose-файлу запустіть:
-
-```sh
-docker compose pull tgbot
-docker compose up -d --remove-orphans
-```
-
-`--remove-orphans` прибере старий контейнер PostgreSQL з compose-проєкту, але не видалить Docker volumes. Старий PostgreSQL volume можна залишити як резервну копію або видалити вручну пізніше, коли переконаєтесь, що SQLite база містить потрібні слова.
-
-## SQLite persistence
+## Дані SQLite
 
 `docker-compose.yml` монтує named volume `bot_data` у `/data`, а бот за замовчуванням використовує файл `/data/mechabaraholka.sqlite`.
 
@@ -77,12 +64,3 @@ docker compose up -d --remove-orphans
 - `docker compose up -d` не видаляє SQLite дані.
 - `docker compose down` не видаляє SQLite дані.
 - `docker compose down -v` видаляє named volumes, включно з SQLite базою.
-
-SQLite таблиця:
-
-```sql
-CREATE TABLE "Word" (
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-    "word" TEXT NOT NULL
-);
-```
