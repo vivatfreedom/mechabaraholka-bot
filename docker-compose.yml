@@ -1,5 +1,6 @@
 services:
   tgbot:
+    image: ghcr.io/vivatfreedom/mechabaraholka-bot:latest
     build: .
     restart: always
     env_file:

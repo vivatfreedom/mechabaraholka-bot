@@ -21,7 +21,8 @@
 - Telegram Bot API Token
 
 Бот написаний на Rust і використовує SQLite для зберігання списку заборонених слів.
-Файл бази зберігається в Docker volume, тому переживає перескладання образу та перезапуск контейнера.
+Docker image збирається в GitHub Actions і публікується в GitHub Container Registry.
+Файл бази зберігається в Docker volume, тому переживає оновлення образу та перезапуск контейнера.
 
 ## Налаштування
 
@@ -41,10 +42,19 @@ VOTEBAN_NEED_COUNT=2
 Звичайний запуск після налаштування SQLite:
 
 ```sh
-docker compose up -d --build
+docker compose pull tgbot
+docker compose up -d
 ```
 
-Після оновлення репозиторію достатньо виконати ту саму команду, щоб пересобрати Rust-образ і перезапустити бота. Дані SQLite залишаються в volume `bot_data`.
+Після оновлення репозиторію достатньо виконати ті самі команди, щоб завантажити готовий образ `ghcr.io/vivatfreedom/mechabaraholka-bot:latest` і перезапустити бота. На маленькому сервері не використовуйте `docker compose up -d --build`: ця команда збирає Rust-образ локально і може зайняти години.
+
+Якщо GitHub Container Registry package приватний, один раз авторизуйтесь на сервері:
+
+```sh
+echo TOKEN | docker login ghcr.io -u vivatfreedom --password-stdin
+```
+
+`TOKEN` має мати доступ на читання package.
 
 ## Міграція з PostgreSQL
 
@@ -61,7 +71,8 @@ POSTGRES_MIGRATION_URL="postgresql://postgres:postgres@db:5432/antispambot?schem
 2. Запустіть бота разом із PostgreSQL profile:
 
 ```sh
-docker compose --profile migration up -d --build
+docker compose --profile migration pull tgbot
+docker compose --profile migration up -d
 ```
 
 Під час старту бот створить SQLite базу за `SQLITE_PATH` і, якщо таблиця SQLite `"Word"` порожня, імпортує слова зі старої PostgreSQL таблиці `"Word"`.
@@ -77,7 +88,8 @@ docker compose logs -f tgbot
 4. Після успішної міграції видаліть `POSTGRES_MIGRATION_URL` з `.env` і перезапустіть бота без PostgreSQL:
 
 ```sh
-docker compose up -d --build
+docker compose pull tgbot
+docker compose up -d
 docker compose stop db
 ```
 
@@ -87,7 +99,8 @@ docker compose stop db
 
 `docker-compose.yml` монтує named volume `bot_data` у `/data`, а бот за замовчуванням використовує файл `/data/mechabaraholka.sqlite`.
 
-- `docker compose up -d --build` не видаляє SQLite дані.
+- `docker compose pull tgbot` не видаляє SQLite дані.
+- `docker compose up -d` не видаляє SQLite дані.
 - `docker compose down` не видаляє SQLite дані.
 - `docker compose down -v` видаляє named volumes, включно з SQLite базою.
 
