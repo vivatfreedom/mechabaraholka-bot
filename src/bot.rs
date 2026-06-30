@@ -170,6 +170,14 @@ fn user_username(user: &User, fallback: &str) -> String {
         .unwrap_or_else(|| fallback.to_string())
 }
 
+fn message_text_for_ban_check<'a>(text: Option<&'a str>, caption: Option<&'a str>) -> &'a str {
+    text.or(caption).unwrap_or_default()
+}
+
+fn message_text_from_update(msg: &Message) -> &str {
+    message_text_for_ban_check(msg.text(), msg.caption())
+}
+
 fn is_bot_admin(state: &AppState, user: &User) -> bool {
     user_id_to_i64(user.id)
         .map(|user_id| state.config.is_bot_admin(user_id))
@@ -428,7 +436,7 @@ async fn handle_regular_message(bot: &Bot, msg: &Message, state: &AppState) -> H
         }
     }
 
-    let text = msg.text().unwrap_or_default();
+    let text = message_text_from_update(msg);
     match db::contains_word(&state.pool, text).await {
         Ok(true) => {
             log_to_admins(
@@ -688,6 +696,19 @@ mod tests {
             text,
             "🗳️ Голосування за бан @target\n\n✅ За (1/2): @starter\n❌ Проти (0/2): немає"
         );
+    }
+
+    #[test]
+    fn message_text_for_ban_check_uses_caption_when_text_is_absent() {
+        assert_eq!(
+            message_text_for_ban_check(None, Some("caption spam")),
+            "caption spam"
+        );
+        assert_eq!(
+            message_text_for_ban_check(Some("plain spam"), Some("caption spam")),
+            "plain spam"
+        );
+        assert_eq!(message_text_for_ban_check(None, None), "");
     }
 
     #[test]
