@@ -20,7 +20,8 @@
 - Docker Compose
 - Telegram Bot API Token
 
-PostgreSQL запускається через `docker-compose.yml`. Бот написаний на Rust.
+Бот написаний на Rust і використовує SQLite для зберігання списку заборонених слів.
+Файл бази зберігається в Docker volume, тому переживає перескладання образу та перезапуск контейнера.
 
 ## Налаштування
 
@@ -29,7 +30,7 @@ PostgreSQL запускається через `docker-compose.yml`. Бот на
 ```env
 BOT_TOKEN="token from BotFather"
 ADMIN_IDS="id_number,id_number,id_number"
-DATABASE_URL="postgresql://postgres:postgres@db:5432/antispambot?schema=public"
+SQLITE_PATH="/data/mechabaraholka.sqlite"
 VOTEBAN_NEED_COUNT=2
 ```
 
@@ -37,22 +38,64 @@ VOTEBAN_NEED_COUNT=2
 
 ## Запуск
 
+Звичайний запуск після налаштування SQLite:
+
 ```sh
 docker compose up -d --build
 ```
 
-Після оновлення репозиторію достатньо виконати ту саму команду, щоб пересобрати Rust-образ і перезапустити бота.
+Після оновлення репозиторію достатньо виконати ту саму команду, щоб пересобрати Rust-образ і перезапустити бота. Дані SQLite залишаються в volume `bot_data`.
 
-## Сумісність з попередньою версією
+## Міграція з PostgreSQL
 
-Бот використовує той самий PostgreSQL volume з `docker-compose.yml` і ту саму таблицю `"Word"`:
+Якщо у вас вже є база PostgreSQL від попередньої версії, виконайте одноразову міграцію.
+
+1. Додайте в `.env` тимчасовий URL старої PostgreSQL бази:
+
+```env
+POSTGRES_MIGRATION_URL="postgresql://postgres:postgres@db:5432/antispambot?schema=public"
+```
+
+Якщо у вашому `.env` вже залишився старий `DATABASE_URL="postgresql://..."`, бот також використає його як джерело міграції. `POSTGRES_MIGRATION_URL` має пріоритет і робить намір явним.
+
+2. Запустіть бота разом із PostgreSQL profile:
+
+```sh
+docker compose --profile migration up -d --build
+```
+
+Під час старту бот створить SQLite базу за `SQLITE_PATH` і, якщо таблиця SQLite `"Word"` порожня, імпортує слова зі старої PostgreSQL таблиці `"Word"`.
+
+3. Перевірте логи:
+
+```sh
+docker compose logs -f tgbot
+```
+
+Очікуване повідомлення в логах: `SQLite migration imported N words from PostgreSQL`.
+
+4. Після успішної міграції видаліть `POSTGRES_MIGRATION_URL` з `.env` і перезапустіть бота без PostgreSQL:
+
+```sh
+docker compose up -d --build
+docker compose stop db
+```
+
+Після цього PostgreSQL більше не потрібен для роботи бота. Не видаляйте PostgreSQL volume, доки не переконаєтесь, що SQLite база містить потрібні слова.
+
+## SQLite persistence
+
+`docker-compose.yml` монтує named volume `bot_data` у `/data`, а бот за замовчуванням використовує файл `/data/mechabaraholka.sqlite`.
+
+- `docker compose up -d --build` не видаляє SQLite дані.
+- `docker compose down` не видаляє SQLite дані.
+- `docker compose down -v` видаляє named volumes, включно з SQLite базою.
+
+SQLite таблиця:
 
 ```sql
 CREATE TABLE "Word" (
-    "id" SERIAL NOT NULL,
-    "word" TEXT NOT NULL,
-    CONSTRAINT "Word_pkey" PRIMARY KEY ("id")
+    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+    "word" TEXT NOT NULL
 );
 ```
-
-Якщо база вже існує після попередньої версії, дані в `"Word"` будуть використані без ручної міграції. Якщо база нова, Rust-бот створить таблицю автоматично під час старту.

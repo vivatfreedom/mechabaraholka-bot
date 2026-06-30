@@ -3,7 +3,7 @@ use crate::{
     db, text,
     voteban::{ActiveVoteban, VoteCounts, VoteResult},
 };
-use sqlx::PgPool;
+use sqlx::SqlitePool;
 use std::error::Error;
 use std::{collections::HashMap, sync::Arc};
 use teloxide::{
@@ -24,7 +24,7 @@ type HandlerResult = Result<(), Box<dyn Error + Send + Sync>>;
 #[derive(Clone)]
 pub struct AppState {
     pub config: Arc<Config>,
-    pub pool: PgPool,
+    pub pool: SqlitePool,
     pub active_votebans: Arc<Mutex<HashMap<i32, ActiveVoteban>>>,
 }
 

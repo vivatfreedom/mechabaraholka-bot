@@ -1,2 +1,6 @@
 .env
 target
+*.db
+*.sqlite
+*.sqlite3
+data

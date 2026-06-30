@@ -4,13 +4,15 @@ services:
     restart: always
     env_file:
       - .env
-    depends_on:
-      - db
+    volumes:
+      - bot_data:/data
     networks:
       - db
 
   db:
     image: postgres:13
+    profiles:
+      - migration
     restart: always
     environment:
       POSTGRES_USER: postgres
@@ -27,3 +29,4 @@ networks:
 
 volumes:
   db:
+  bot_data:
