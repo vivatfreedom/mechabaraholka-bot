@@ -411,17 +411,11 @@ async fn handle_regular_message(bot: &Bot, msg: &Message, state: &AppState) -> H
     let Some(user_id) = user_id_to_i64(from.id) else {
         return Ok(());
     };
-    let username = user_username(from, "Без імені");
-
     if is_group_admin(bot, state, msg.chat.id, from.id).await {
-        log_to_admins(
-            bot,
-            state,
-            format!("@{username} ({user_id}) - адміністратор, дії не виконуються."),
-        )
-        .await;
         return Ok(());
     }
+
+    let username = user_username(from, "Без імені");
 
     if let Some(forward_chat) = msg.forward_from_chat() {
         if forward_chat.id != msg.chat.id {
@@ -709,6 +703,14 @@ mod tests {
             "plain spam"
         );
         assert_eq!(message_text_for_ban_check(None, None), "");
+    }
+
+    #[test]
+    fn admin_skip_noise_log_is_not_present() {
+        let source = include_str!("bot.rs");
+        let noisy_log = format!("{}, {}", "адміністратор", "дії не виконуються");
+
+        assert!(!source.contains(&noisy_log));
     }
 
     #[test]
