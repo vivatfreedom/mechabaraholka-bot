@@ -1,12 +1,5 @@
 use crate::text;
-use sqlx::{postgres::PgPoolOptions, sqlite::SqlitePoolOptions, PgPool, SqlitePool};
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum MigrationOutcome {
-    NotConfigured,
-    SkippedSqliteHasWords { existing_count: i64 },
-    Imported { count: usize },
-}
+use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
 
 pub async fn connect_sqlite(path_or_url: &str) -> Result<SqlitePool, sqlx::Error> {
     let database_url = sqlite_database_url(path_or_url);
@@ -83,48 +76,6 @@ pub async fn contains_word(pool: &SqlitePool, message_text: &str) -> Result<bool
     Ok(text::contains_ban_word(message_text, &words))
 }
 
-pub async fn sqlite_word_count(pool: &SqlitePool) -> Result<i64, sqlx::Error> {
-    sqlx::query_scalar::<_, i64>(r#"SELECT COUNT(*) FROM "Word""#)
-        .fetch_one(pool)
-        .await
-}
-
-pub async fn import_words_into_sqlite(
-    pool: &SqlitePool,
-    words: &[String],
-) -> Result<usize, sqlx::Error> {
-    add_words(pool, words).await
-}
-
-pub async fn migrate_from_postgres_if_empty(
-    sqlite_pool: &SqlitePool,
-    postgres_url: Option<&str>,
-) -> Result<MigrationOutcome, sqlx::Error> {
-    let Some(postgres_url) = postgres_url else {
-        return Ok(MigrationOutcome::NotConfigured);
-    };
-
-    let existing_count = sqlite_word_count(sqlite_pool).await?;
-    if existing_count > 0 {
-        return Ok(MigrationOutcome::SkippedSqliteHasWords { existing_count });
-    }
-
-    let pg_pool = PgPoolOptions::new()
-        .max_connections(1)
-        .connect(postgres_url)
-        .await?;
-    let words = postgres_words(&pg_pool).await?;
-    let count = import_words_into_sqlite(sqlite_pool, &words).await?;
-    Ok(MigrationOutcome::Imported { count })
-}
-
-async fn postgres_words(pool: &PgPool) -> Result<Vec<String>, sqlx::Error> {
-    let rows = sqlx::query_as::<_, (String,)>(r#"SELECT "word" FROM "Word" ORDER BY "id""#)
-        .fetch_all(pool)
-        .await?;
-    Ok(rows.into_iter().map(|(word,)| word).collect())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -170,81 +121,5 @@ mod tests {
             sqlite_database_url("sqlite:///data/mechabaraholka.sqlite?mode=rwc"),
             "sqlite:///data/mechabaraholka.sqlite?mode=rwc"
         );
-    }
-
-    #[tokio::test]
-    async fn migration_skips_postgres_when_sqlite_already_has_words() -> anyhow::Result<()> {
-        let dir = tempfile::tempdir()?;
-        let database_url = format!(
-            "sqlite://{}?mode=rwc",
-            dir.path().join("words.sqlite").display()
-        );
-        let pool = connect_sqlite(&database_url).await?;
-        ensure_schema(&pool).await?;
-        add_words(&pool, &["existing".to_string()]).await?;
-
-        let outcome =
-            migrate_from_postgres_if_empty(&pool, Some("postgresql://invalid.invalid/db")).await?;
-
-        assert_eq!(
-            outcome,
-            MigrationOutcome::SkippedSqliteHasWords { existing_count: 1 }
-        );
-        assert_eq!(list_words(&pool).await?, vec!["existing".to_string()]);
-        Ok(())
-    }
-
-    #[tokio::test]
-    #[ignore = "requires POSTGRES_MIGRATION_URL pointing at the old PostgreSQL database"]
-    async fn migration_imports_words_from_existing_postgres_word_table() -> anyhow::Result<()> {
-        let postgres_url = std::env::var("POSTGRES_MIGRATION_URL")?;
-        let pg_pool = sqlx::postgres::PgPoolOptions::new()
-            .max_connections(1)
-            .connect(&postgres_url)
-            .await?;
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS "Word" (
-                "id" SERIAL NOT NULL,
-                "word" TEXT NOT NULL,
-                CONSTRAINT "Word_pkey" PRIMARY KEY ("id")
-            )
-            "#,
-        )
-        .execute(&pg_pool)
-        .await?;
-
-        let suffix = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)?
-            .as_nanos();
-        let first = format!("migration-{suffix}-spam");
-        let second = format!("migration-{suffix}-scam");
-        sqlx::query(r#"INSERT INTO "Word" ("word") VALUES ($1), ($2), ($1)"#)
-            .bind(&first)
-            .bind(&second)
-            .execute(&pg_pool)
-            .await?;
-
-        let dir = tempfile::tempdir()?;
-        let database_url = format!(
-            "sqlite://{}?mode=rwc",
-            dir.path().join("words.sqlite").display()
-        );
-        let sqlite_pool = connect_sqlite(&database_url).await?;
-        ensure_schema(&sqlite_pool).await?;
-
-        let outcome = migrate_from_postgres_if_empty(&sqlite_pool, Some(&postgres_url)).await?;
-        let words = list_words(&sqlite_pool).await?;
-
-        sqlx::query(r#"DELETE FROM "Word" WHERE "word" = $1 OR "word" = $2"#)
-            .bind(&first)
-            .bind(&second)
-            .execute(&pg_pool)
-            .await?;
-
-        assert!(matches!(outcome, MigrationOutcome::Imported { count } if count >= 2));
-        assert!(words.contains(&first));
-        assert!(words.contains(&second));
-        Ok(())
     }
 }

@@ -56,44 +56,18 @@ echo TOKEN | docker login ghcr.io -u vivatfreedom --password-stdin
 
 `TOKEN` має мати доступ на читання package.
 
-## Міграція з PostgreSQL
+## Оновлення після міграції з PostgreSQL
 
-Якщо у вас вже є база PostgreSQL від попередньої версії, виконайте одноразову міграцію.
+Міграцію даних у SQLite вже виконано. PostgreSQL більше не потрібен для роботи бота, а `.env` не має містити `POSTGRES_MIGRATION_URL` або старий PostgreSQL `DATABASE_URL`.
 
-1. Додайте в `.env` тимчасовий URL старої PostgreSQL бази:
-
-```env
-POSTGRES_MIGRATION_URL="postgresql://postgres:postgres@db:5432/antispambot?schema=public"
-```
-
-Якщо у вашому `.env` вже залишився старий `DATABASE_URL="postgresql://..."`, бот також використає його як джерело міграції. `POSTGRES_MIGRATION_URL` має пріоритет і робить намір явним.
-
-2. Запустіть бота разом із PostgreSQL profile:
-
-```sh
-docker compose --profile migration pull tgbot
-docker compose --profile migration up -d
-```
-
-Під час старту бот створить SQLite базу за `SQLITE_PATH` і, якщо таблиця SQLite `"Word"` порожня, імпортує слова зі старої PostgreSQL таблиці `"Word"`.
-
-3. Перевірте логи:
-
-```sh
-docker compose logs -f tgbot
-```
-
-Очікуване повідомлення в логах: `SQLite migration imported N words from PostgreSQL`.
-
-4. Після успішної міграції видаліть `POSTGRES_MIGRATION_URL` з `.env` і перезапустіть бота без PostgreSQL:
+Після оновлення цього compose-файлу запустіть:
 
 ```sh
 docker compose pull tgbot
-docker compose up -d
-docker compose stop db
+docker compose up -d --remove-orphans
 ```
 
-Після цього PostgreSQL більше не потрібен для роботи бота. Не видаляйте PostgreSQL volume, доки не переконаєтесь, що SQLite база містить потрібні слова.
+`--remove-orphans` прибере старий контейнер PostgreSQL з compose-проєкту, але не видалить Docker volumes. Старий PostgreSQL volume можна залишити як резервну копію або видалити вручну пізніше, коли переконаєтесь, що SQLite база містить потрібні слова.
 
 ## SQLite persistence
 

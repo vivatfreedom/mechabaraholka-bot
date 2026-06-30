@@ -1,33 +1,11 @@
 services:
   tgbot:
     image: ghcr.io/vivatfreedom/mechabaraholka-bot:latest
-    build: .
     restart: always
     env_file:
       - .env
     volumes:
       - bot_data:/data
-    networks:
-      - db
-
-  db:
-    image: postgres:13
-    profiles:
-      - migration
-    restart: always
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: antispambot
-    volumes:
-      - db:/var/lib/postgresql/data
-    networks:
-      - db
-
-networks:
-  db:
-    driver: bridge
 
 volumes:
-  db:
   bot_data:
